@@ -1,0 +1,6 @@
+echo "======== Executing boot.scr ..."
+dhcp
+env set serverip 10.0.0.1
+echo "======== Try pxe boot ..."
+pxe get
+pxe boot
