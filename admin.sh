@@ -70,7 +70,6 @@ cmd_env() {
 		__ubootcfg=$dir/config/uboot-$__board.config \
 		__ubootobj=$WS/uboot-$__board-obj \
 		__sdimage=$WS/sd-$__board.img \
-		__id=01-f6-0b-6e-84-77-ec \
 		__bootscr=$dir/config/u-boot.scr \
 		__busybox=busybox
 	eset BL31=$WS/$ver_trust/build/rk3399/release/bl31/bl31.elf		
@@ -148,6 +147,8 @@ cdsrc() {
 ##     initrd created. The local interface, dhcpd and tftpd are setup.
 ##     WARNING: Requires "sudo"
 cmd_setup() {
+	test -n "$__dev" || die "No --dev"
+	check_local_addr
 	if test "$__clean" = "yes"; then
 		rm -rf $WS
 		# We must restart dhcpd and tftpd since their config dirs were removed!
@@ -461,13 +462,14 @@ cp_bootfiles() {
 	test -r $f || die "Not readable [$f]"
 	cp $f $1/rock.dtb
 }
-##   tftp_setup
+##   tftp_setup [--pxe-file=default]
 ##     Copy files from to the tftp-boot directory
 cmd_tftp_setup() {
+	test -n "$__pxe_file" || __pxe_file=default
 	rm -rf $__tftproot/*
 	local d=$__tftproot/pxelinux.cfg
 	mkdir -p $d
-	cp config/pxelinux.cfg $d/default
+	cp config/pxelinux.cfg $d/$__pxe_file
 	cp_bootfiles $__tftproot
 	local f=$__ubootobj/u-boot.dtb
 }
