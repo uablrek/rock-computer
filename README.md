@@ -46,62 +46,31 @@ decompress:
 
 
 ```
-xz --decompress --stdout sd-rock-4se-rk3399.img.xz > sd.img
+xz -d sd-rock-4se-rk3399.img.xz
 ```
 
 Unfortunately there is a problem with the u-boot `serverip` variable. It
 *should* be set by the "serverid" DHCP option (54), but I have not got
 that working (see [below](#serverip)). So for now you must set it to
-the address of your `tftp` server manually. This is done by updating
-the `sd.img` image:
+the address of your `tftp` server manually:
 
 ```
-serverip=<address-to-your-tftp-server>
-sed -e "s,10.0.0.1,$serverip," < config/u-boot.scr > /tmp/u-boot.scr
-./admin.sh update-bootscr --image=sd.img --bootscr=/tmp/u-boot.scr
+./admin.sh set_serverip --sdimage=sd-rock-4se-rk3399.img <address-to-your-tftp-server>
 ```
 
 Now you can flash your SD-card:
 ```
 dev=<device-of-your-sd-card>     # THIS MUST BE RIGHT!!
-sudo dd if=sd.img of=$dev status=progress oflag=dsync bs=4M
+sudo dd if=sd-rock-4se-rk3399.img of=$dev status=progress oflag=dsync bs=4M
 ```
 **WARNING**: If `dev` points to the wrong device (like your hard-disk),
 it **will be destroyed!**
 
+You are done! Insert the SD-card and power-on your board, and it will
+boot from network.
 
-## Network and server setup
-
-A wired network is assumed. I use wifi for internet, so my wired
-interface, `enp5s0`, is free and used as an example. You may configure
-your wired interface yourself, or use my script. Example:
-
-```
-./admin.sh interface_setup --dev=enp5s0 --local-addr=192.168.40.1/24
-# (requires sudo)
-```
-
-A `dhcp` and a `tftp` server are needed. You may setup those in your
-own way (there re plenty of instructions), or you can use my script.
-
-I use the `udhcpd` applet in [BusyBox](https://busybox.net/).
-`BusyBox` is included in Ubuntu, but you may have to build it locally.
-
-```
-#export __busybox=/path/to/local/built/busybox
-./admin.sh dhcpd --dev=enp5s0 --local-addr=192.168.40.1/24
-# (requires sudo)
-```
-
-I did not get any pre-buit `tftp` server to work, so I build
-[atftp](https://github.com/madmartin/atftp) locally. Download the `tar.gz`
-package from the [tags page](https://github.com/madmartin/atftp/tags).
-
-```
-./admin.sh atftp_build
-./admin.sh tftpd --local-addr=192.168.40.1/24 --tftproot=/tmp/tftproot
-# (requires sudo)
-```
+If you want to alter your SD-card, please check [SD-card layout](
+#sd-card-layout) below.
 
 ## Network boot
 
@@ -139,8 +108,75 @@ label Linux
 
 U-boot will load `Image`, `initrd` and `rock.dtb` and start Linux with
 the command line in "append". The boot files are different for
-everybody, so I can't say what they *should be*. But some examples
-will be posted here eventually.
+everybody, so I can't say what they *should be*. But I will update
+with some examples.
+
+
+## Network and server setup
+
+A wired network is assumed. I use wifi for internet, so my wired
+interface, `enp5s0`, is free and used as an example. You may configure
+your wired interface yourself, or use my script. Example:
+
+```
+./admin.sh interface_setup --dev=enp5s0 --local-addr=192.168.40.1/24
+# (requires sudo)
+```
+
+A `dhcp` and a `tftp` server are needed. You may setup those in your
+own way (there re plenty of instructions), or you can use my script.
+
+I use the `udhcpd` applet in [BusyBox](https://busybox.net/).
+`BusyBox` is included in Ubuntu, but you may have to build it locally.
+
+```
+#export __busybox=/path/to/local/built/busybox
+./admin.sh dhcpd --dev=enp5s0 --local-addr=192.168.40.1/24
+# (requires sudo)
+```
+
+I did not get any pre-buit `tftp` server to work, so I build
+[atftp](https://github.com/madmartin/atftp) locally. Download the `tar.gz`
+package from the [tags page](https://github.com/madmartin/atftp/tags).
+
+```
+./admin.sh atftp_build
+./admin.sh tftpd --local-addr=192.168.40.1/24 --tftproot=/tmp/tftproot
+# (requires sudo)
+```
+
+## SD-card layout
+
+The SD-image is 54MiB, but your SD-card is much larger. This mean that
+the backup GPT table is in the wrong place. Example:
+
+```
+sudo sfdisk -l /dev/sdb
+GPT PMBR size mismatch (110591 != 15523839) will be corrected by write.
+The backup GPT table is not on the end of the device.
+Disk /dev/sdb: 7.4 GiB, 7948206080 bytes, 15523840 sectors
+Disk model: SD Card         
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: gpt
+Disk identifier: 3681BD8A-F200-4B40-A742-782D81AE6147
+
+Device     Start    End Sectors Size Type
+/dev/sdb1  32768 102399   69632  34M EFI System
+```
+
+This doesn't matter if you only use the SD-card for network boot, and
+it will be corrected by `sfdisk` if you add a partition.
+
+```
+echo ",,L," | sudo sfdisk --append /dev/sdb
+sudo mkfs.ext4 /dev/sdb2
+```
+
+You may note that the EFI partition starts at sector 32768? That's
+because the `u-boot` binary is written on sector 64 and occupies ~10M
+space.
 
 
 ## Rebuild sd.img

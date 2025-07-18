@@ -67,7 +67,6 @@ cmd_env() {
 		__httproot=$WS/httproot \
 		__bbcfg=$dir/config/$ver_busybox \
 		__initrd=$__kobj/initrd.cpio.gz \
-		__local_addr=10.0.0.1/24 \
 		__ubootcfg=$dir/config/uboot-$__board.config \
 		__ubootobj=$WS/uboot-$__board-obj \
 		__sdimage=$WS/sd-$__board.img \
@@ -85,11 +84,6 @@ cmd_env() {
 	mkdir -p $WS || die "Can't mkdir [$WS]"
 	disk=$dir/disk.sh
 	cd $dir
-	# --local-addr is hard to document, better check it...
-	if ! echo $__local_addr | grep -q -E '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/24'; then
-		log "Invalid local_addr [$__local_addr]"
-		die "MUST be an IPv4 address with /24, e.g 10.0.0.1/24"
-	fi
 }
 # Set variables unless already defined. Vars are collected into $opts
 eset() {
@@ -99,6 +93,13 @@ eset() {
 		opts="$opts|$k"
 		test -n "$(eval echo \$$k)" || eval $e
 	done
+}
+check_local_addr() {
+	test -n "$__local_addr" || die "No --local_addr"
+	if ! echo $__local_addr | grep -q -E '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/24'; then
+		log "Invalid local_addr [$__local_addr]"
+		die "MUST be an IPv4 address with /24, e.g 10.0.0.1/24"
+	fi
 }
 ##   versions [--brief]
 ##     Print used sw versions
@@ -174,6 +175,7 @@ cmd_interface_setup() {
 		log "IPv4 address already exist on [$__dev]"
 		return 0
 	fi
+	check_local_addr
 	ip link show $__dev > /dev/null || die "Not found [$__dev]"
 	echo $__local_addr | grep -q '/24$' || \
 		die "Not a IPv4 /24 address [$__local_addr]"
@@ -376,7 +378,7 @@ cmd_collect_ovls() {
 	done
 }
 ##   dhcpd --conf=file [--restart]
-##   dhcpd --dev= --local-addr= [--dns=] [--restart]
+##   dhcpd --dev= --local-addr=ipv4/24 [--dns=] [--restart]
 ##     Start "busybox udhcpd" as dhcp server. If --conf is NOT specified
 ##     a config is generated from --dev, --dns and --local-addr
 cmd_dhcpd() {
@@ -402,6 +404,7 @@ cmd_dhcpd() {
 	fi
 
 	if test -z "$__conf"; then
+		check_local_addr
 		test -n "$__dns" || __dns=10.0.10.1
 		__conf=$WS/udhcpd.conf
 		local serverip=$(echo $__local_addr | cut -d/ -f1)
@@ -425,7 +428,7 @@ cmd_atftp_build() {
 	./configure || die configure
 	make -j$(nproc) || die make
 }
-##   tftpd [--restart]
+##   tftpd --local-addr=ipv4/24 [--restart]
 ##     Start a tftpd server. Prerequisite: "atftp" is built
 cmd_tftpd() {
 	if pidof atftpd > /dev/null; then
@@ -440,6 +443,7 @@ cmd_tftpd() {
 			return 0
 		fi
 	fi
+	check_local_addr
 	local d=$WS/$ver_atftp
 	test -x $d/atftpd || die "Not executable [$d/atftpd]"
 	mkdir -p "$__tftproot"
@@ -479,15 +483,16 @@ pmount() {
 	mnt=$($disk mount)
 	test -n "$mnt" || die "mount partition [$__p]"
 }
-##   update-bootscr [--image=image] [--bootscr=script]
+##   update-bootscr [--sdimage=sdimage] --bootscr=script
 ##     Update "boot.scr" on the image
 cmd_update_bootscr() {
+	test -n "$__bootscr" || die "--bootscr not defined"
 	test -r $__bootscr || die "Not readable [$__bootscr]"
-	test -r $__image || die "Not readable [$__image]"
+	test -r $__sdimage || die "Not readable [$__sdimage]"
 	mkdir -p $tmp
 	local mkimage=$__ubootobj/tools/mkimage
 	$mkimage -T script -d $__bootscr $tmp/boot.scr || die $mkimage
-	export __image
+	export __image=$__sdimage
 	loop_setup
 	pmount 1
 	if test -r $mnt/boot.scr; then
@@ -499,6 +504,23 @@ cmd_update_bootscr() {
 	$disk unmount -b $__dev
 	$disk loop-delete
 }
+##   set_serverip --local-addr=ipv4/24 [--sdimage=]
+##   set_serverip [--sdimage=] serverip
+##     Set the serverip in "boot.scr" on the image
+cmd_set_serverip() {
+	local serverip
+	if test -n "$1"; then
+		serverip=$1
+	else
+		check_local_addr
+		serverip=$(echo $__local_addr | cut -d/ -f1)
+	fi
+	test -r "$__sdimage" || die "Not readable [$__sdimage]"
+	mkdir -p $tmp
+	__bootscr=$tmp/u-boot.scr
+	sed -e "s,10.0.0.1,$serverip," < config/u-boot.scr > $__bootscr
+	cmd_update_bootscr
+}
 ##   sdimage [--sdimage=] [--boot-files]
 ##     Create an image to be copied to SD. To include kernel, intrd and fdt
 ##     use "--boot-files". This is NOT needed if PXE boot is used!
@@ -508,12 +530,11 @@ cmd_sdimage() {
 	local uboot=$__ubootobj/u-boot-rockchip.bin
 	test -r $uboot || die "Not readable [$uboot]"
 	rm -f $__sdimage
-	truncate -s 40MiB $__sdimage || die "Failed to create [$__sdimage]"
+	truncate -s 54MiB $__sdimage || die "Failed to create [$__sdimage]"
 	dd if=$uboot of=$__sdimage bs=512 seek=64 conv=notrunc
-	#16384
 	sfdisk --no-tell-kernel $__sdimage <<EOF
 label: gpt
-,34MiB,U,*
+32768,34MiB,U,*
 EOF
 	export __image=$__sdimage
 	$disk mkfat || die "mkfat"
@@ -521,11 +542,12 @@ EOF
 	log "Dev $__dev"
 	pmount
 	local mkimage=$__ubootobj/tools/mkimage
-	$mkimage -T script -d $__bootscr $mnt/boot.scr
+	$mkimage -T script -d config/u-boot.scr $mnt/boot.scr
 	test "$__boot_files" = "yes" && cp_bootfiles $mnt
 	ls $mnt
 	$disk unmount || die "unmount"
 	$disk loop-delete || die "loop-delete"
+	xz --keep $__sdimage
 	log "Created [$__sdimage]"
 }
 ##
