@@ -57,6 +57,8 @@ the address of your `tftp` server manually:
 ```
 ./admin.sh set_serverip --sdimage=sd-rock-4se-rk3399.img <address-to-your-tftp-server>
 ```
+(problems with this? Please see
+[Development and contributions](#development-and-contributions))
 
 Now you can flash your SD-card:
 ```
@@ -243,6 +245,11 @@ meaning that everything you contribute will become public domain.
 
 I use Ubuntu Linux, `24.04.2 LTS` at the moment. Other Linux distros
 should work, but are not tested.
+
+The `bin/mkimage` program included in the repo, used by
+`set_serverip`, is built on my PC. It will work for most Linux
+distros, but if not, you must build `u-boot` locally as described in
+[Rebuild sd.img](#rebuild-sdimg).
 
 You *may* want to set $ROCK_WORKSPACE to a non-temp directory.
 
