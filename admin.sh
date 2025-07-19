@@ -63,6 +63,7 @@ cmd_env() {
 		__kcfg=$dir/config/$ver_kernel \
 		__kdir=$KERNELDIR/$ver_kernel \
 		kernel=$__kobj/arch/arm64/boot/Image \
+		dtb=$__kobj/arch/arm64/boot/dts/rockchip/rk3399-rock-4se.dtb \
 		__tftproot=$WS/tftproot \
 		__httproot=$WS/httproot \
 		__bbcfg=$dir/config/$ver_busybox \
@@ -458,9 +459,8 @@ cp_bootfiles() {
 	cp $kernel $1/Image
 	test -r $__initrd || die "Not readable [$__initrd]"
 	cp $__initrd $1/initrd
-	local f=$__ubootobj/u-boot.dtb
-	test -r $f || die "Not readable [$f]"
-	cp $f $1/rock.dtb
+	test -r $dtb || die "Not readable [$dtb]"
+	cp $dtb $1/rock.dtb
 }
 ##   tftp_setup [--pxe-file=default]
 ##     Copy files from to the tftp-boot directory
@@ -471,7 +471,6 @@ cmd_tftp_setup() {
 	mkdir -p $d
 	cp config/pxelinux.cfg $d/$__pxe_file
 	cp_bootfiles $__tftproot
-	local f=$__ubootobj/u-boot.dtb
 }
 # Setup a loop device and define $__dev
 loop_setup() {
