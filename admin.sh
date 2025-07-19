@@ -72,7 +72,7 @@ cmd_env() {
 		__ubootobj=$WS/uboot-$__board-obj \
 		__sdimage=$WS/sd-$__board.img \
 		__bootscr=$dir/config/u-boot.scr \
-		__busybox=busybox
+		__busybox=$WS/local/$ver_busybox/busybox
 	eset BL31=$WS/$ver_trust/build/rk3399/release/bl31/bl31.elf		
 	if test "$cmd" = "env"; then
 		set | grep -E "^($opts)="
@@ -279,9 +279,13 @@ cmd_install_modules() {
 	INSTALL_MOD_PATH=$1 make -j$(nproc) -C $__kobj modules_install \
 		1>&2 > /dev/null || die "Failed to install modules from [$__kobj]"
 }
-##   busybox_build [--bbcfg=] [--menuconfig]
-##     Build BusyBox for target aarch64-linux-gnu-
+##   busybox_build [--bbcfg=] [--menuconfig] [--local]
+##     Build BusyBox for target aarch64-linux-gnu-, unless --local is used
 cmd_busybox_build() {
+	if test "$__local" = "yes"; then
+		WS=$WS/local
+		mkdir -p $WS
+	fi
 	cdsrc $ver_busybox
 	if test "$__menuconfig" = "yes"; then
 		test -r $__bbcfg && cp $__bbcfg ./.config
@@ -291,8 +295,11 @@ cmd_busybox_build() {
 		test -r $__bbcfg || die "No config"
 		cp $__bbcfg ./.config
 	fi
-	sed -i -E "s,CONFIG_CROSS_COMPILER_PREFIX=\"\",CONFIG_CROSS_COMPILER_PREFIX=\"$__arch-linux-gnu-\"," .config
+	test "$__local" != "yes" && \
+		sed -i -E "s,CONFIG_CROSS_COMPILER_PREFIX=\"\",CONFIG_CROSS_COMPILER_PREFIX=\"$__arch-linux-gnu-\"," .config
 	make -j$(nproc) || die make
+	test "$__local" = "yes" && log "Built [$PWD/busybox]"
+	return 0
 }
 ##   initrd_build [--initrd=] [ovls...]
 ##     Build a ramdisk (cpio archive) with busybox and the passed
@@ -385,8 +392,14 @@ cmd_collect_ovls() {
 ##     a config is generated from --dev, --dns and --local-addr
 cmd_dhcpd() {
 	test -n "$__dev" || die "No wired interface specified"
-	which $__busybox > /dev/null || \
-		die 'BusyBox not found. Set the $__busybox variable'
+	if ! test -x $__busybox; then
+		# Try system installed busybox
+		if which busybox > /dev/null; then
+			__busybox=busybox
+		else
+			die 'BusyBox not found. Set the $__busybox variable'
+		fi
+	fi
 	$__busybox udhcpd -h 2>&1 | grep -q Usage: || \
 		die "busybox udhcpd applet not supported"
 

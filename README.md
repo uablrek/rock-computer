@@ -132,6 +132,7 @@ I use the `udhcpd` applet in [BusyBox](https://busybox.net/).
 `BusyBox` is included in Ubuntu, but you may have to build it locally.
 
 ```
+#./admin.sh busybox_build --local   # source archive must be downloaded
 #export __busybox=/path/to/local/built/busybox
 ./admin.sh dhcpd --dev=enp5s0 --local-addr=192.168.40.1/24
 # (requires sudo)
