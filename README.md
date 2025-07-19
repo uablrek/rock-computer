@@ -27,7 +27,7 @@ Most things are done with the `admin.sh` script.
 ./admin.sh versions           # Used versions and download/clone status
 ```
 
-Everything is built in $ROCK_WORKSPACE, which defaults to
+Everything is built in `$ROCK_WORKSPACE`, which defaults to
 "/tmp/tmp/$USER/ROCK". Default for options can be set as environment
 variables. Example:
 
@@ -125,7 +125,7 @@ your wired interface yourself, or use my script. Example:
 # (requires sudo)
 ```
 
-A `dhcp` and a `tftp` server are needed. You may setup those in your
+`Dhcp` and `tftp` servers are needed. You may setup those in your
 own way (there re plenty of instructions), or you can use my script.
 
 I use the `udhcpd` applet in [BusyBox](https://busybox.net/).

@@ -492,7 +492,7 @@ cmd_update_bootscr() {
 	test -r $__sdimage || die "Not readable [$__sdimage]"
 	mkdir -p $tmp
 	local mkimage=$__ubootobj/tools/mkimage
-	test -x mkimage || mkimage=$dir/bin/mkimage
+	test -x $mkimage || mkimage=$dir/bin/mkimage
 	$mkimage -T script -d $__bootscr $tmp/boot.scr || die $mkimage
 	export __image=$__sdimage
 	loop_setup
@@ -551,7 +551,12 @@ EOF
 	$disk loop-delete || die "loop-delete"
 	rm -f $__sdimage.xz
 	xz --keep $__sdimage
-	log "Created [$__sdimage]"
+	log "Created [$__sdimage.xz]"
+	if test -n "$__local_addr"; then
+		check_local_addr
+		cmd_set_serverip
+		log "Serverip set in [$__sdimage]"
+	fi
 }
 ##
 # Get the command
