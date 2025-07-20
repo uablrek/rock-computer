@@ -215,14 +215,24 @@ https://github.com/TrustedFirmware-A/trusted-firmware-a/tags).
 Now build u-boot for another board:
 
 ```
+#export __board=rock-4c-plus-rk3399   # and skip --board below
+./admin.sh trustedf_build
 ./admin.sh uboot_build --board=rock-4c-plus-rk3399 --default
+./admin.sh sdimage --board=rock-4c-plus-rk3399
 ```
 
 The available configurations can be found in the `configs/` directory
-in the u-boot source (unpacked in $ROCK_WORKSPACE/u-boot-*). I can build
+in the u-boot source (unpacked in `$ROCK_WORKSPACE/u-boot-*`). I can build
 the `rock-4*` configurations, but not others. You may want to alter
 the configuration, at least set default baud-rate to 115200.
 
+The config is stored in `$__ubootcfg` which defaults to
+`config/uboot-$__board.config`. Do **not** use `--default` again! For
+subsequent updates use:
+
+```
+./admin.sh uboot_build --board=rock-4c-plus-rk3399 --menuconfig
+```
 
 ## Serverip
 
