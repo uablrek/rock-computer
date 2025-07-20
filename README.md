@@ -76,6 +76,29 @@ If you want to alter your SD-card, please check [SD-card layout](
 
 ## Network boot
 
+Boot sequence (simplified):
+```mermaid
+sequenceDiagram
+  box Radxa Rock
+  participant fw as FirmWare
+  participant u as U-boot
+  participant p1 as SD-card<br/>partition
+  participant kernel
+  end
+  participant dhcpd
+  participant tftpd
+  fw->>u : Loads from sector 64
+  u->>p1 : Reads "boot.scr"
+  u->>dhcpd : request
+  dhcpd->>u : offer
+  u->>tftpd : Request pxelinux.cfg
+  u->>tftpd : Load kernel
+  u->>tftpd : Load initrd
+  u->>tftpd : Load ftd
+  u->>kernel : Starts
+```
+
+
 On power-on the board will now obtain an address via `DHCP` and
 request a `pxelinux` configuration via `tftp` on a number of
 places. An easy way to find out *where* is to check the `tftp` server
