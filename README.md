@@ -297,4 +297,35 @@ u-boot-2025.07       (/home/uablrek/Downloads/u-boot-2025.07.tar.gz)
 trusted-firmware-a-lts-v2.12.4 (/home/uablrek/Downloads/trusted-firmware-a-lts-v2.12.4.tar.gz)
 ```
 
-(you probably will not need the kernel, but I test with it)
+If you only want to [Rebuild sd.img](#rebuild-sdimg) you will not need
+the kernel nor busybox.
+
+### Kernel test
+
+I test different kernel builds. I am trying to get main-line kernels
+working, but so far I haven't got the HDMI to work. Anyway, this
+includes *many* rebuild+restart cycles, so you want them to be fast.
+Here are some convenient settings:
+
+```
+eval $(./admin.sh env | grep WS=)
+export __pxe_file=<your 01-f6-0b-6e-84-77-ec>  # Limit the tftp search
+export __tftp_setup=yes                        # Auto-update tftpd on kernel-build
+export INITRD_OVL="initrd/default"             # Auto-update initrd on kernel-build
+export KCFG_BACKUP=$WS/saved-configs           # Save kernel configs
+alias admin=$PWD/admin.sh
+alias cdws="cd $WS"
+alias lscfg="ls $KCFG_BACKUP"
+```
+
+Now, to test a new kernel setting, just do:
+```
+admin kernel-build --menuconfig
+# Reset your board, and watch the console...
+```
+
+If you mess up (and you will), then restore a working config with:
+```
+lscfg      # Pick some working config
+admin kernel-build --menuconfig --restoreconfig=<your-pick>
+```

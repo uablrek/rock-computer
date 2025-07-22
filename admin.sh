@@ -72,7 +72,8 @@ cmd_env() {
 		__ubootobj=$WS/uboot-$__board-obj \
 		__sdimage=$WS/sd-$__board.img \
 		__bootscr=$dir/config/u-boot.scr \
-		__busybox=$WS/local/$ver_busybox/busybox
+		__busybox=$WS/local/$ver_busybox/busybox \
+		KCFG_BACKUP=''
 	eset BL31=$WS/$ver_trust/build/rk3399/release/bl31/bl31.elf		
 	if test "$cmd" = "env"; then
 		set | grep -E "^($opts)="
@@ -243,9 +244,10 @@ cmd_kernel_unpack() {
 	mkdir -p $KERNELDIR
 	tar -C $KERNELDIR -xf $f
 }
-##   kernel_build --tinyconfig  # Init the kcfg
+##   kernel_build --initconfig=     # Init the kcfg
+##   kernel_build --restoreconfig=  # restore config from backup
 ##   kernel_build [--clean] [--menuconfig]
-##     Build the kernel
+##     Build the kernel.
 cmd_kernel_build() {
 	cmd_kernel_unpack
 	test "$__clean" = "yes" && rm -rf $__kobj
@@ -253,23 +255,41 @@ cmd_kernel_build() {
 
 	local CROSS_COMPILE=aarch64-linux-gnu-
 	local make="make -C $__kdir O=$__kobj ARCH=arm64 CROSS_COMPILE=$CROSS_COMPILE"
-	if test "$__tinyconfig" = "yes"; then
+	if test -n "$__initconfig"; then
 		rm -r $__kobj
 		mkdir -p $__kobj $(dirname $__kcfg)
-		$make -C $__kdir O=$__kobj tinyconfig
+		$make -C $__kdir O=$__kobj $__initconfig || die "make $__initconfig"
 		cp $__kobj/.config $__kcfg
 		__menuconfig=yes
+	elif test -n "$__restoreconfig"; then
+		test -n "$KCFG_BACKUP" || die 'Not set [$KCFG_BACKUP]'
+		local c=$KCFG_BACKUP/$__restoreconfig
+		test -r $c || die "Not readable [$c]"
+		cp $c $__kcfg
 	fi
 
 	test -r $__kcfg || die "Not readable [$__kcfg]"
 	cp $__kcfg $__kobj/.config
 	if test "$__menuconfig" = "yes"; then
+		if test -n "$KCFG_BACKUP"; then
+			mkdir -p $KCFG_BACKUP || die "mkdir $KCFG_BACKUP"
+			local c=$(basename $__kcfg)
+			cp $__kcfg $KCFG_BACKUP/$c-$(date +'%F-%H.%M')
+		fi
 		$make menuconfig
 		cp $__kobj/.config $__kcfg
 	else
 		$make oldconfig
 	fi
-	$make -j$(nproc) Image modules dtbs
+	$make -j$(nproc) Image modules dtbs || die "make kernel"
+	if test "$__tftp_setup" = "yes"; then
+		if test -n "$INITRD_OVL"; then
+			# Assume module update is needed
+			$me initrd_build
+		else
+			$me tftp_setup
+		fi
+	fi
 }
 ##   install_modules <dest>
 ##     Install kernel modules in the dest directory
@@ -301,7 +321,7 @@ cmd_busybox_build() {
 	test "$__local" = "yes" && log "Built [$PWD/busybox]"
 	return 0
 }
-##   initrd_build [--initrd=] [ovls...]
+##   initrd_build [--initrd=] [--env=file] [ovls...]
 ##     Build a ramdisk (cpio archive) with busybox and the passed
 ##     ovls (a'la xcluster)
 cmd_initrd_build() {
@@ -319,8 +339,13 @@ dir /bin 755 0 0
 file /bin/busybox $bb 755 0 0
 slink /bin/sh busybox 755 0 0
 EOF
-	if test -n "$1"; then
-		cmd_unpack_ovls $tmp/root $@
+	if test -n "$1" -o -n "$INITRD_OVL"; then
+		cmd_unpack_ovls $tmp/root $INITRD_OVL $@
+		if test -n "$__env"; then
+			test -r "$__env" || die "Not readable [$__env]"
+			mkdir -p $tmp/root/etc
+			cp $__env $tmp/root/etc/env
+		fi
 		cmd_emit_list $tmp/root >> $tmp/cpio-list
 	else
 		cat >> $tmp/cpio-list <<EOF
@@ -330,6 +355,7 @@ EOF
 	fi
 	$gen_init_cpio $tmp/cpio-list | gzip -c > $__initrd
 	#zcat $__initrd | cpio -i --list
+	test "$__tftp_setup" = "yes" && $me tftp_setup
 }
 #   gen_init_cpio
 #     Build the kernel gen_init_cpio utility
