@@ -306,8 +306,8 @@ map_modules() {
 }
 cmd_config_of() {
 	test -n "$1" || die "No module"
-	test "$__rebuild" = "yes" && cmd_map_modules
-	test -r $__kobj/raw-obj-symbols || cmd_map_modules
+	test "$__rebuild" = "yes" && map_modules
+	test -r $__kobj/raw-obj-symbols || map_modules
 	local out=$__kobj/module-to-symbol
 	local raw=$__kobj/raw-obj-symbols
 	local s=$1
