@@ -1,0 +1,40 @@
+#! /bin/sh
+
+PATH="/bin:/sbin:/usr/bin:/usr/sbin"
+export PATH
+
+if test -r /etc/env; then
+	. /etc/env
+	cat /etc/env >> /etc/profile
+fi
+test -n "$HOSTNAME" && hostname $HOSTNAME
+test -n "$TZ" && echo "$TZ" > /etc/TZ
+
+# Start syslog. Only env before this!
+mkdir -p /var/log
+klogd -c 4
+syslogd -s 1000 -b 10
+
+if test -w /proc/sys/kernel/core_pattern; then
+	mkdir -p /var/log/dumps
+	echo "/var/log/dumps/core.%e.%p" > /proc/sys/kernel/core_pattern
+fi
+
+if test -d /lib/modules/$(uname -r); then
+	depmod
+	#CONFIG_UEVENT_HELPER
+	test -w /proc/sys/kernel/hotplug && \
+		echo /sbin/mdev > /proc/sys/kernel/hotplug
+fi
+
+# Some programs need these links
+if ! test -e /dev/stdin; then
+	ln -s /proc/self/fd/0 /dev/stdin
+	ln -s /proc/self/fd/1 /dev/stdout
+	ln -s /proc/self/fd/2 /dev/stderr
+fi
+
+# Start other services
+for n in `find /etc/init.d -name "*.rc" | sort`; do
+    $n start
+done

@@ -1,0 +1,6 @@
+#! /bin/sh
+. ./etc/profile
+ip link show > /dev/null 2>&1 || return
+ip link set lo up
+ip addr add 127.0.0.0/8 dev lo
+inetd

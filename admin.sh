@@ -106,7 +106,7 @@ check_local_addr() {
 ##     Print used sw versions
 versions() {
 	eset \
-		ver_kernel=linux-6.15.6 \
+		ver_kernel=linux-6.15.8 \
 		ver_busybox=busybox-1.36.1 \
 		ver_atftp=atftp-0.8.0 \
 		ver_uboot=u-boot-2025.07 \
@@ -290,35 +290,6 @@ cmd_kernel_build() {
 			$me tftp_setup
 		fi
 	fi
-}
-##   config-of <kernel-module>
-##     Find the kernel CONFIG_ setting that activates the module.
-map_modules() {
-	#https://stackoverflow.com/questions/45905642/mapping-kernel-config-variables-to-modules
-	local out=$__kobj/module-to-symbol
-	local raw=$__kobj/raw-obj-symbols
-	mkdir -p $__kobj
-	cd $__kdir
-	grep -rF 'obj-$(CONFIG_' > $raw
-	grep -E 'obj-\$\(CONFIG_.*= *[0-9a-z_-]+\.o *$' < $raw \
-		| sed -E 's,.*\(CONFIG_([^\)]+).*= ([0-9a-z_-]+)\.o *$,\1:\2,' \
-		> $out
-}
-cmd_config_of() {
-	test -n "$1" || die "No module"
-	test "$__rebuild" = "yes" && map_modules
-	test -r $__kobj/raw-obj-symbols || map_modules
-	local out=$__kobj/module-to-symbol
-	local raw=$__kobj/raw-obj-symbols
-	local s=$1
-	grep -q $s $raw || s=$(echo $s | tr _ -)
-	grep -q $s $raw || die "Not found"
-	local out=$__kobj/module-to-symbol
-	if ! grep -q ":$s" $out; then
-		grep $s $raw
-		die "Only in raw output"
-	fi
-	grep ":$s" $out | cut -d: -f1
 }
 ##   install_modules <dest>
 ##     Install kernel modules in the dest directory

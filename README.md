@@ -3,6 +3,9 @@
 I got a [Radxa ROCK 4 SE](https://wiki.radxa.com/Rock4/se) on sale for
 1/3 of the price, so I couldn't resist. I don't want to use a distro,
 but want to build everything from scratch, cross-compile and net-boot.
+If you *want* a distro, [Armbian](https://www.armbian.com/) is *by far*
+the best I have found (but watch up for [this issue](
+https://github.com/armbian/community/issues/39)).
 
 If you want to try for instance different kernels, it is *very*
 inconvenient to flash-and-switch the SD-card all the time. The way to
@@ -74,6 +77,7 @@ boot from network.
 If you want to alter your SD-card, please check [SD-card layout](
 #sd-card-layout) below.
 
+
 ## Network boot
 
 Boot sequence (simplified):
@@ -133,8 +137,9 @@ label Linux
 
 U-boot will load `Image`, `initrd` and `rock.dtb` and start Linux with
 the command line in "append". The boot files are different for
-everybody, so I can't say what they *should be*. But I will update
-with some examples.
+everybody, so I can't say what they *should be*. I describe how I do
+in [Kernel test](#kernel-test) below.
+
 
 
 ## Network and server setup
@@ -278,7 +283,7 @@ Issues and PR's are welcome. Please note that the license is `CC0-1.0`,
 meaning that everything you contribute will become public domain.
 
 I use Ubuntu Linux, `24.04.2 LTS` at the moment. Other Linux distros
-should work, but are not tested.
+should work (with some tweaks), but are not tested.
 
 The `bin/mkimage` program included in the repo, used by
 `set_serverip`, is built on my PC. It will work for most Linux
@@ -300,12 +305,59 @@ trusted-firmware-a-lts-v2.12.4 (/home/uablrek/Downloads/trusted-firmware-a-lts-v
 If you only want to [Rebuild sd.img](#rebuild-sdimg) you will not need
 the kernel nor busybox.
 
+
 ### Kernel test
 
-I test different kernel builds. I am trying to get main-line kernels
-working, but so far I haven't got the HDMI to work. Anyway, this
-includes *many* rebuild+restart cycles, so you want them to be fast.
-Here are some convenient settings:
+After research and queries in forums and *many* attempts, I have come
+to the conclusion that *you can't use vanilla kernels from
+https://kernel.org/*. The kernels *must* be patched to get all
+functionality for any Radxa Rock. The vanilla kernels *do* boot
+though, but with very limited functionality. The serial console works,
+so if you have a cable you can build and test.
+
+
+First you need to define a kernel source tree:
+```
+export ver_kernel=<kernel-version>         # just a string
+export __kdir=/path/to/your/kernel-source
+export __kcfg=/path/to/your/kernel-config
+export __kobj=/path/to/your/kernel-obj     # the "O=" for kernel build
+# Or use the defaults:
+#export KERNELDIR=$HOME/tmp/linux   # this is the default
+eval $(./admin.sh versions --brief | grep ver_kernel)
+curl -L --output-dir $HOME/Downloads -O https://cdn.kernel.org/pub/linux/kernel/v6.x/$ver_kernel.tar.xz
+# The kernel source is unpacked in $KERNELDIR
+```
+
+Build the kernel:
+```
+./admin.sh kernel_build --menuconfig
+# kernel: $__kobj/arch/arm64/boot/Image
+# dtb: $__kobj/arch/arm64/boot/dts/rockchip/rk3399-rock-4se.dtb
+```
+
+Now you need an `initrd`:
+```
+./admin.sh initrd/default
+initrd/default/tar | tar t      # To see contents
+# Or your own:
+./admin.sh /path/to/your/dir/with/tar-script
+# Take initrd/default/tar as an example
+```
+
+If you have dhcpd and tftpd started, update the files and power-on:
+```
+./admin.sh tftp_setup
+# power-on your board and check the serial console. Test for instance:
+load-all-modules
+lsmod
+ls -F /dev
+```
+
+### Re-test speedup
+
+Usually testing kernels includes *many* rebuild+restart cycles, so you
+want them to be fast.  Here are some convenient settings:
 
 ```
 eval $(./admin.sh env | grep WS=)

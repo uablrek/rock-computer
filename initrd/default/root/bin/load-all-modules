@@ -1,0 +1,7 @@
+#! /bin/sh
+
+dir=/lib/modules/$(uname -r)
+for m in $(find $dir -name '*.ko'); do
+	module=$(basename -s .ko $m)
+	modprobe $module
+done

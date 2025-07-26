@@ -1,0 +1,6 @@
+::sysinit:/etc/init.d/rcS
+::ctrlaltdel:/sbin/reboot
+::shutdown:/bin/umount -a -r
+::restart:/sbin/init
+ttyS2::respawn:/usr/bin/env ENV=/etc/profile /bin/sh
+#tty0::respawn:/usr/bin/env ENV=/etc/profile /bin/sh
