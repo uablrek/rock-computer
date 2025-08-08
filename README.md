@@ -372,3 +372,27 @@ If you mess up (and you will), then restore a working config with:
 lscfg      # Pick some working config
 admin kernel-build --menuconfig --restoreconfig=<your-pick>
 ```
+
+### Date and time
+
+Radxa Rock 4se has no hardware clock, so the `initrd` tries to set the
+date with [rdate](with https://linux.die.net/man/1/rdate). First it
+tries the DHCP `serverid`, which is you PC (normally), then
+`time.nist.gov` if that fails. You may start a time-server with:
+
+```
+./admin.sh busybox_build --local
+./admin.sh time-server            # (requires sudo. Opens port 37)
+```
+
+The time-zone is specified in `initrd/default/root/etc/env`, which you
+may override with `--env=` to "initrd_build". The timezone database is
+**NOT available!** Meaning settings like "Europe/Stockholm" will *not
+work*. You must set `TZ` the [posix way](
+https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html).
+
+Example:
+```
+man 3 tzset
+export TZ=CET-1CEST-2,M3.5.0,M10.5.0/3      # (the default)
+```

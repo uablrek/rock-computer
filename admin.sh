@@ -62,7 +62,7 @@ cmd_env() {
 	eset \
 		__kcfg=$dir/config/$ver_kernel \
 		__kdir=$KERNELDIR/$ver_kernel \
-		kernel=$__kobj/arch/arm64/boot/Image \
+		kernel=$__kobj/arch/arm64/boot/Image.gz \
 		dtb=$__kobj/arch/arm64/boot/dts/rockchip/rk3399-rock-4se.dtb \
 		__tftproot=$WS/tftproot \
 		__httproot=$WS/httproot \
@@ -106,7 +106,7 @@ check_local_addr() {
 ##     Print used sw versions
 versions() {
 	eset \
-		ver_kernel=linux-6.15.8 \
+		ver_kernel=linux-6.16 \
 		ver_busybox=busybox-1.36.1 \
 		ver_atftp=atftp-0.8.0 \
 		ver_uboot=u-boot-2025.07 \
@@ -163,9 +163,11 @@ cmd_setup() {
 	$me trustedf_build || die trustedf_build
 	$me uboot_build || die uboot_build
 	$me busybox_build || die busybox_build
+	$me busybox_build --local || die "busybox_build --local"
 	$me kernel_build || die kernel_build
 	$me initrd_build || die initrd_build
 	$me tftp_setup || die tftp_setup
+	$me time_server || die time_server
 }
 ##   interface_setup --dev=<UNUSED-wired-interface> --local-addr=ipv4/24
 ##     Setup the local wired interface. An IPv4 /24 address must be used.
@@ -203,7 +205,7 @@ cmd_trustedf_build() {
 	make -j$(nproc) CROSS_COMPILE=aarch64-linux-gnu- PLAT=rk3399
 }
 ##   uboot_build [--default] [--board=] [--menuconfig]
-##     Build U-boot for rock-4se-rk3399. --default re-initiates the config.
+##     Build U-boot. --default re-initiates the config.
 cmd_uboot_build() {
 	cdsrc $ver_uboot
 	export CROSS_COMPILE=aarch64-linux-gnu-
@@ -260,7 +262,7 @@ cmd_kernel_build() {
 		mkdir -p $__kobj $(dirname $__kcfg)
 		$make -C $__kdir O=$__kobj $__initconfig || die "make $__initconfig"
 		cp $__kobj/.config $__kcfg
-		__menuconfig=yes
+		test "$__menuconfig" = "no" && return 0
 	elif test -n "$__restoreconfig"; then
 		test -n "$KCFG_BACKUP" || die 'Not set [$KCFG_BACKUP]'
 		local c=$KCFG_BACKUP/$__restoreconfig
@@ -281,7 +283,7 @@ cmd_kernel_build() {
 	else
 		$make oldconfig
 	fi
-	$make -j$(nproc) Image modules dtbs || die "make kernel"
+	$make -j$(nproc) Image.gz modules dtbs || die "make kernel"
 	if test "$__tftp_setup" = "yes"; then
 		if test -n "$INITRD_OVL"; then
 			# Assume module update is needed
@@ -404,20 +406,30 @@ cmd_emit_list() {
 		echo "file $x $d$x $p 0 0"
 	done
 }
-##   collect_ovls [ovls...]
-##     Collect ovl's to the --httproot
-cmd_collect_ovls() {
-	mkdir -p $__httproot || dir "mkdir -p $__httproot"
-	local out=$__httproot/ovls.txt
-	rm $(find $__httproot -name '*.tar') $out 2> /dev/null
-	local ovl i=1 f
-	for ovl in $@; do
-		f=$(printf "%02d%s.tar" $i $(basename $ovl))
-		echo $f >> $out
-		i=$((i + 1))
-		test -x $ovl/tar || die "Not executable [$ovl/tar]"
-		$ovl/tar $__httproot/$f || die "Failed [$ovl]"
-	done
+##   time-server
+##     Start a time-server. The "inetd" applet on a local-built
+##     busybox is used.
+cmd_time_server() {
+	test -x $__busybox || die "Not executable [$__busybox]"
+	if pidof inetd > /dev/null; then
+		local pid=$(pidof inetd)
+		if test "$__restart" = "yes"; then
+			log "Killing server pid [$pid]"
+			sudo kill $pid
+			sleep 0.2
+			pidof inetd > /dev/null && die "Server refuses to die"
+		else
+			log "Inetd (busybox) already started as pid $pid"
+			return 0
+		fi
+	fi
+	local d=$WS/inetd
+	mkdir -p $d
+	ln -fs $__busybox $d/inetd
+	cat > $d/inetd.conf <<EOF
+time     stream  tcp	nowait	root	internal
+EOF
+	sudo $d/inetd $d/inetd.conf
 }
 ##   dhcpd --conf=file [--restart]
 ##   dhcpd --dev= --local-addr=ipv4/24 [--dns=] [--restart]
