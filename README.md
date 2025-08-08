@@ -3,8 +3,8 @@
 I got a [Radxa ROCK 4 SE](https://wiki.radxa.com/Rock4/se) on sale for
 1/3 of the price, so I couldn't resist. I don't want to use a distro,
 but want to build everything from scratch, cross-compile and net-boot.
-If you *want* a distro, [Armbian](https://www.armbian.com/) is *by far*
-the best I have found (but watch up for [this issue](
+If you *want* a distro, [Armbian](https://www.armbian.com/) is the
+best I have found (but watch up for [this issue](
 https://github.com/armbian/community/issues/39)).
 
 If you want to try for instance different kernels, it is *very*
@@ -261,6 +261,10 @@ is still valid (for once). I bought
 120SEK (~$12). They can't do 1.5Mbps, but 115200 is totally sufficient, and
 since we build `u-boot` we can set the default baud-rate.
 
+**Update**: One of my Oiyagai Debug Cable has broken already, and the
+  device is lost about twice a day and has to be removed/re-inserted.
+  You might want to avoid the cheap stuff.
+
 ```
 #sudo apt install minicom
 alias minicom='minicom -w -t xterm -l -R UTF-8'
@@ -308,51 +312,38 @@ the kernel nor busybox.
 
 ### Kernel test
 
-After research and queries in forums and *many* attempts, I have come
+After research, and queries in forums, and *many* attempts, I have come
 to the conclusion that *you can't use vanilla kernels from
 https://kernel.org/*. The kernels *must* be patched to get all
 functionality for any Radxa Rock. The vanilla kernels *do* boot
-though, but with very limited functionality. The serial console works,
-so if you have a cable you can build and test.
+though, but I can't get graphics to work, and I haven't even tried
+USB, sound, video, wifi, etc.  The serial console and (wired) ethernet
+works, so you can build and test (and if your use-case is some kind of
+network server, you are good to go).
 
 
-First you need to define a kernel source tree:
+First download the source archives:
 ```
-export ver_kernel=<kernel-version>         # just a string
-export __kdir=/path/to/your/kernel-source
-export __kcfg=/path/to/your/kernel-config
-export __kobj=/path/to/your/kernel-obj     # the "O=" for kernel build
-# Or use the defaults:
-#export KERNELDIR=$HOME/tmp/linux   # this is the default
-eval $(./admin.sh versions --brief | grep ver_kernel)
+./admin.sh versions                   # check
+eval $(./admin.sh versions --brief)   # set them in your shell
 curl -L --output-dir $HOME/Downloads -O https://cdn.kernel.org/pub/linux/kernel/v6.x/$ver_kernel.tar.xz
-# The kernel source is unpacked in $KERNELDIR
+curl -L --output-dir $HOME/Downloads -O https://busybox.net/downloads/$ver_busybox.tar.bz2
+./admin.sh versions                   # check again
 ```
 
-Build the kernel:
+With defaults:
 ```
-./admin.sh kernel_build --menuconfig
-# kernel: $__kobj/arch/arm64/boot/Image
-# dtb: $__kobj/arch/arm64/boot/dts/rockchip/rk3399-rock-4se.dtb
-```
-
-Now you need an `initrd`:
-```
-./admin.sh initrd/default
-initrd/default/tar | tar t      # To see contents
-# Or your own:
-./admin.sh /path/to/your/dir/with/tar-script
-# Take initrd/default/tar as an example
+./admin.sh kernel_build               # (will unpack to $KERNELDIR)
+./admin.sh busybox_build
+./admin.sh initrd_build initrd/default
+#initrd/default/tar - | tar t         # To see contents of initrd
+./admin.sh tftp_setup                 # (assuming atftp is used)
+# boot!
 ```
 
-If you have dhcpd and tftpd started, update the files and power-on:
-```
-./admin.sh tftp_setup
-# power-on your board and check the serial console. Test for instance:
-load-all-modules
-lsmod
-ls -F /dev
-```
+If everything goes well, you will get a shell as root on the serial
+console, and you can `telnet` to the board (no passwd).
+
 
 ### Re-test speedup
 
