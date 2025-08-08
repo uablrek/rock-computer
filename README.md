@@ -376,7 +376,7 @@ admin kernel-build --menuconfig --restoreconfig=<your-pick>
 ### Date and time
 
 Radxa Rock 4se has no hardware clock, so the `initrd` tries to set the
-date with [rdate](with https://linux.die.net/man/1/rdate). First it
+date with [rdate](https://linux.die.net/man/1/rdate). First it
 tries the DHCP `serverid`, which is you PC (normally), then
 `time.nist.gov` if that fails. You may start a time-server with:
 
